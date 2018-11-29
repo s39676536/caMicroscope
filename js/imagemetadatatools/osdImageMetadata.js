@@ -18,7 +18,6 @@ var OSDImageMetaData = new Class({
                 var pro = [];
                 pro.push(yah);
                 pro.push(e.field_iip_path[0].value+".dzi");
-                console.log("erich : "+JSON.stringify(pro));
                 this.metaData = pro;
             }.bind(this), onFailure: function (e) {
                 alert("Failed to get dimension");
