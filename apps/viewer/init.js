@@ -130,6 +130,7 @@ function initCore(){
       if(e.isServiceError) redirect($D.pages.table,e.message, 0);
     }else{
       $D.params.data = e;
+      
       // popup panel
       $CAMIC.viewer.addHandler('canvas-lay-click',function(e){
         if(!e.data) {
@@ -138,6 +139,7 @@ function initCore(){
         }
         // for support QUIP 2.0
         const data = Array.isArray(e.data)? e.data[e.data.selected]: e.data;
+
 
         const type = data.provenance.analysis.source;
         let body;
@@ -364,6 +366,20 @@ function initUIcomponents(){
     callback: ()=>{window.open('https://goo.gl/forms/mgyhx4ADH0UuEQJ53','_blank').focus()}
   });
 
+
+  // -- view btn START -- //
+  if(!($D.params.data.hasOwnProperty('review') && $D.params.data['review']=='true')){
+    console.log('create check');
+    subToolsOpt.push({
+      name:'review',
+      icon:'playlist_add_check',
+      title:'has reviewed',
+      type:'btn',
+      value:'review',
+      callback:updateSlideView
+    });
+  }
+  // -- END -- //
   // create the tool bar
   $UI.toolbar = new CaToolbar({
   /* opts that need to think of*/
@@ -625,4 +641,28 @@ function redirect(url ,text = '', sec = 5){
     timer--;
 
   }, 1000);
+}
+
+
+function updateSlideView(){
+  if(!confirm(`Do you want to change this slide's reivew status?`)) return;
+  Loading.open(document.body, 'changing review status ...');
+  var url = "../../data/Slide/update"
+  var query = {}
+  
+  query.slide = $D.params.data.name;
+  query.field = 'review'
+  query.value = true
+
+  fetch(url + "?" + objToParamStr(query), {
+    method: "DELETE",
+    credentials: "include",
+    mode: "cors"
+  }).then(this.errorHandler).then(function(e){
+    if(e.status==200){
+      $UI.toolbar.getSubTool('review').style.display = 'none';
+    }
+  }).finally(function(){
+    Loading.close();
+  })
 }
