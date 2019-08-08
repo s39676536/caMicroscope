@@ -11,9 +11,14 @@ function toggleViewerMode(opt){
 		magnifierOff();
 		// turn off measurement
 		measurementOff();
+		
+		
 		//open layers menu
+		$UI.toolbar._main_tools[1].querySelector('input[type=checkbox]').checked = true;
 		$UI.layersSideMenu.open();
+		
 		//close apps menu
+		$UI.toolbar._main_tools[0].querySelector('input[type=checkbox]').checked = false;
 		$UI.appsSideMenu.close();
 
 		openMinorControlPanel();
@@ -31,7 +36,9 @@ function toggleViewerMode(opt){
 function multSelector_action(size){
 	// hidden main viewer's bottom right control and get navigator
 	$CAMIC.viewer.controls.bottomright.style.display = 'none';
-
+	$UI.lockerPanel.style.display = '';
+	$UI.lockerPanel.querySelector("input[type=checkbox]").checked = true
+	isLock = true;
 	// open new instance camic
 	try{
 		let slideQuery = {}
@@ -61,10 +68,10 @@ function multSelector_action(size){
 
 		// synchornic zoom and move
 		// coordinated Viewer - zoom
-		$CAMIC.viewer.addHandler('zoom',synchornicView1);
+		$CAMIC.viewer.addHandler('zoom',synchornicView1,{type:'zoom'});
 
 		// coordinated Viewer - pan
-		$CAMIC.viewer.addHandler('pan',synchornicView1);
+		$CAMIC.viewer.addHandler('pan',synchornicView1,{type:'pan'});
 
 		// loading image
 		$minorCAMIC.loadImg(function(e){
@@ -74,8 +81,8 @@ function multSelector_action(size){
 			}
 		});
 		$minorCAMIC.viewer.addOnceHandler('tile-drawing',function(){
-			$minorCAMIC.viewer.addHandler('zoom',synchornicView2);
-			$minorCAMIC.viewer.addHandler('pan',synchornicView2);
+			$minorCAMIC.viewer.addHandler('zoom',synchornicView2,{type:'zoom'});
+			$minorCAMIC.viewer.addHandler('pan',synchornicView2,{type:'pan'});
 			// cerate segment display
 			$minorCAMIC.viewer.createSegment({
 				store:$minorCAMIC.store,
@@ -95,25 +102,50 @@ function multSelector_action(size){
 
 var active1 = false;
 var active2 = false;
+var isLock = true;
 function synchornicView1(data){
-	if (active2) {
-	return;
-	}
-
+	if (active2) return;
 	active1 = true;
-	$minorCAMIC.viewer.viewport.zoomTo($CAMIC.viewer.viewport.getZoom());
-	$minorCAMIC.viewer.viewport.panTo($CAMIC.viewer.viewport.getCenter());
+	switch (data.userData.type) {
+		case 'zoom':
+			if(isLock){
+				$minorCAMIC.viewer.viewport.zoomTo(data.zoom,data.refPoint);
+			}else{
+				$minorCAMIC.viewer.viewport.panTo($CAMIC.viewer.viewport.getCenter(true));
+			}
+			break;
+		case 'pan':
+			$minorCAMIC.viewer.viewport.panTo(data.center);
+			break;
+		default:
+			$minorCAMIC.viewer.viewport.zoomTo($CAMIC.viewer.viewport.getZoom());
+			$minorCAMIC.viewer.viewport.panTo($CAMIC.viewer.viewport.getCenter());
+			break;
+	}
 	active1 = false;
 }
 
 function synchornicView2(data){
-  if (active1) {
-    return;
-  }
-  active2 = true;
-  $CAMIC.viewer.viewport.zoomTo($minorCAMIC.viewer.viewport.getZoom());
-  $CAMIC.viewer.viewport.panTo($minorCAMIC.viewer.viewport.getCenter());
-  active2 = false;
+	if (active1) return;
+	active2 = true;
+	switch (data.userData.type) {
+		case 'zoom':
+			if(isLock){
+				$CAMIC.viewer.viewport.zoomTo(data.zoom,data.refPoint);
+			}else{
+				$CAMIC.viewer.viewport.panTo($minorCAMIC.viewer.viewport.getCenter(true));
+			}
+			break;
+		case 'pan':
+			$CAMIC.viewer.viewport.panTo(data.center);
+			break;
+		default:
+			$CAMIC.viewer.viewport.zoomTo($minorCAMIC.viewer.viewport.getZoom());
+			$CAMIC.viewer.viewport.panTo($minorCAMIC.viewer.viewport.getCenter());
+			break;
+	}
+
+	active2 = false;
 }
 
 function openSecondaryViewer(){
@@ -143,6 +175,7 @@ function closeSecondaryViewer(){
 	minor.classList.add('none');
 	minor.classList.remove('right');
 	$CAMIC.viewer.controls.bottomright.style.display = '';
+	$UI.lockerPanel.style.display = 'none';
 
 	const li = $UI.toolbar.getSubTool('sbsviewer');
 	li.querySelector('input[type="checkbox"]').checked = false;
@@ -508,9 +541,7 @@ function anno_callback(data){
 	const annotJson = {
 		provenance:{
 			image:{
-				slide:$D.params.data.name,
-				specimen:$D.params.data.specimen,
-				study:$D.params.data.study
+				slide:$D.params.slideId
 			},
 			analysis:{
 				source:'human',
@@ -606,7 +637,7 @@ async function callback(data){
 		default:
 			break;
 	}
-	
+
 	data.forEach(function(d){
 		const item = d.item;
 		if(item.typeName=='segmentation'){
@@ -618,8 +649,6 @@ async function callback(data){
 			return;
 		}
 		if(item.typeName=='heatmap'){
-			console.log('heatmap');
-			console.log(d);
 			if($D.heatMapData&&$D.heatMapData.provenance.analysis.execution_id == item.id&&camic.viewer.heatmap){
 				// show or hide heatmap
 				if(d.isShow){
@@ -647,8 +676,8 @@ async function callback(data){
 				camic.viewer.createHeatmap(opt);
 			}else{
 				Loading.open(document.body,'Loading Heatmap Data...');
-				// load heatmap 
-				camic.store.getHeatmap($D.params.data.name,item.id)
+				// load heatmap
+				camic.store.getHeatmap($D.params.slideId,item.id)
 				.then(function(data){
 					if(Array.isArray(data)&&data.length>0){
 						$D.heatMapData = data[0];
@@ -670,8 +699,8 @@ async function callback(data){
 				        }
 						camic.viewer.createHeatmap(opt);
 
-				    }			
-				})		
+				    }
+				})
 				.catch(function(error){
 					// heatmap schema
 					console.error(error);
@@ -682,9 +711,25 @@ async function callback(data){
 					}else{
 						// set message
 						$UI.message.addError('Loading Heatmap Data Is Error');
-						
+
 					}
-				}); 
+				});
+			}
+
+			// rest other check box
+			const cates = viewerName=='main'?$UI.layersViewer.setting.categoricalData:$UI.layersViewerMinor.setting.categoricalData;
+			if(d.isShow){
+				for(let key in cates){
+					cate = cates[key];
+					if(cate.item.name=='heatmap'){
+						cate.items.forEach(i=>{
+							if(d !== i&&i.isShow){
+								i.elt.querySelector('input[type=checkbox]').checked = false;
+								i.isShow = false;
+							}
+						});
+					}
+				}
 			}
 			return;
 		}
@@ -724,7 +769,7 @@ function loadAnnotationById(camic, layerData ,callback){
 
 			Loading.open(document.body,'Loading Layers...');
 
-			$CAMIC.store.getMarkByIds([item.id],$D.params.data.name)
+			$CAMIC.store.getMarkByIds([item.id],$D.params.slideId)
 			.then(data =>{
 				delete item.loading;
 
@@ -862,14 +907,15 @@ function openHeatmap(){
 
 }
 function hostedHeatmap(){
-	const slide = $D.params.data.name;
+	const slide = $D.params.slideId;
+	const slideName = $D.params.data.name;
 	$CAMIC.store.findHeatmapType(slide)
 	//
 	.then(function(list){
 		if (typeof list === "undefined") { list = [] }
 		// get heatmap data
 		if(!list.length){
-			alert(`${slide} Has No Heatmap Data.`);
+			alert(`${slideName} Has No Heatmap Data.`);
 			return;
 		}
 		createHeatMapList(list);
